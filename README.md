@@ -145,6 +145,32 @@ def update_or_create_readme(root: Path, content: str) -> None:
             new_text = before + auto_block + after
         else:
             # Append an auto section to existing README
-            new_text = text.rstrip() + "\n\n" + auto_block
+            new_text = text.rstrip() + "\n\n" + auto_blockname: Auto README
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python generate_readme.py --max-depth 3
+      - name: Commit changes
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add README.md
+            git commit -m "docs: update auto README"
+            git push
+          else
+            echo "No changes to commit."
+          fi
+
         readme.write_text(new_text, encoding="utf-8")
     e
