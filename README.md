@@ -14,7 +14,7 @@ A tiny README generator/updater for any repository.
   <!-- AUTO-README:START --> and <!-- AUTO-README:END --> to be CI-friendly.
 
 Usage:
-    python generate_readme.py
+    python generate_readme.
 Optional:
     python generate_readme.py --max-depth 3 --ignore "data,build,dist"
 """
