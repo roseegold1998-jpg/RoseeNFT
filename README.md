@@ -154,7 +154,57 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
+    steps:#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import os
+from pathlib import Path
+
+AUTO_START = "<!-- AUTO-README:START -->"
+AUTO_END   = "<!-- AUTO-README:END -->"
+
+IGNORES = {".git", ".github", "__pycache__", "node_modules", "venv", ".venv"}
+
+def tree(dir_path: Path, prefix: str = "", depth: int = 0, max_depth: int = 2):
+    if depth > max_depth:
+        return []
+    lines = []
+    entries = [e for e in dir_path.iterdir() if e.name not in IGNORES]
+    entries.sort(key=lambda e: (e.is_file(), e.name.lower()))
+    for i, e in enumerate(entries):
+        connector = "└── " if i == len(entries) - 1 else "├── "
+        if e.is_dir():
+            lines.append(prefix + connector + e.name + "/")
+            extension = "    " if i == len(entries) - 1 else "│   "
+            lines += tree(e, prefix + extension, depth + 1, max_depth)
+        else:
+            lines.append(prefix + connector + e.name)
+    return lines
+
+def generate_section(root: Path, max_depth: int = 2) -> str:
+    lines = [root.name + "/"] + tree(root, max_depth=max_depth)
+    return "## ساختار ریپو\n\n```\n" + "\n".join(lines) + "\n```\n"
+
+def update_readme(root: Path, section: str):
+    readme = root / "README.md"
+    block = f"{AUTO_START}\n{section}{AUTO_END}\n"
+    if readme.exists():
+        text = readme.read_text(encoding="utf-8")
+        if AUTO_START in text and AUTO_END in text:
+            before = text.split(AUTO_START)[0]
+            after = text.split(AUTO_END)[-1]
+            new_text = before + block + after
+        else:
+            new_text = text.rstrip() + "\n\n" + block
+    else:
+        new_text = f"# {root.name}\n\n{block}"
+    readme.write_text(new_text, encoding="utf-8")
+
+if __name__ == "__main__":
+    root = Path(".").resolve()
+    section = generate_section(root, max_depth=2)
+    update_readme(root, section)
+    print("✅ README.md به‌روزرسانی شد.")
+
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
