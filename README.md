@@ -222,5 +222,5 @@ if __name__ == "__main__":
             echo "No changes to commit."
           fi
 
-        readme.write_text(new_text, encoding="utf-8")
+        readme.write_text(new_text, encoding="utf-")
     e
