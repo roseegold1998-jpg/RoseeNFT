@@ -123,15 +123,7 @@ def make_auto_section(root: Path, ignore: set[str], max_depth: int) -> str:
     langs_md = ", ".join(f"{k} ({human_int(v)})" for k, v in langs.items()) or "—"
 
     return f"""## نمای کلی ریپو
-
-- 🗂️ تعداد فایل‌ها: **{human_int(total_files)}**
-- 🧾 مجموع خطوط (تقریبی فایل‌های متنی): **{human_int(total_lines)}**
-- 🧠 زبان‌ها/فایل‌ها: {langs_md}
-
-### ساختار دایرکتوری (تا عمق تعیین‌شده)
-{tree_md}
-
-> این بخش به‌صورت خودکار توسط `generate_readme.py` ساخته/به‌روزرسانی شده است.
+.
 """
 
 def update_or_create_readme(root: Path, content: str) -> None:
