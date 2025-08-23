@@ -215,4 +215,168 @@ if __name__ == "__main__":
           fi
 
         readme.write_text(new_text, encoding="utf-8")
-    e
+    e#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+generate_changelog.py
+Creates/updates CHANGELOG.md from git history.
+
+- Groups commits by type (feat, fix, docs, refactor, perf, test, build, ci, chore, deps, other)
+- Uses latest tag (git tag) as the previous release boundary; if no tag exists, uses the first commit.
+- Supports PR numbers (#123) and commit short hashes.
+- Updates only the section between <!-- AUTO-CHANGELOG:START --> and <!-- AUTO-CHANGELOG:END -->.
+
+Usage:
+    python generate_changelog.py
+Optional:
+    python generate_changelog.py --since v1.2.0  # override range start
+    python generate_changelog.py --max-commits 500
+"""
+
+from __future__ import annotations
+import argparse
+import datetime as dt
+import os
+import re
+import subprocess
+from pathlib import Path
+from typing import List, Tuple, Dict
+
+AUTO_START = "<!-- AUTO-CHANGELOG:START -->"
+AUTO_END   = "<!-- AUTO-CHANGELOG:END -->"
+
+TYPES = [
+    ("feat", "Features"),
+    ("fix", "Bug Fixes"),
+    ("docs", "Documentation"),
+    ("refactor", "Refactoring"),
+    ("perf", "Performance"),
+    ("test", "Tests"),
+    ("build", "Build System"),
+    ("ci", "CI"),
+    ("chore", "Chores"),
+    ("deps", "Dependencies"),
+]
+
+COMMIT_PATTERN = re.compile(
+    r"^(?P<type>feat|fix|docs|refactor|perf|test|build|ci|chore|deps)"
+    r"(?:\((?P<scope>[^)]+)\))?!?:\s*(?P<desc>.+)$",
+    re.IGNORECASE
+)
+
+def sh(cmd: List[str]) -> str:
+    return subprocess.check_output(cmd, text=True).strip()
+
+def latest_tag() -> str | None:
+    try:
+        return sh(["git", "describe", "--tags", "--abbrev=0"])
+    except subprocess.CalledProcessError:
+        return None
+
+def list_commits(since: str | None, max_commits: int) -> List[Tuple[str, str]]:
+    range_spec = f"{since}..HEAD" if since else None
+    fmt = "%h%x1f%s"
+    cmd = ["git", "log", f"--max-count={max_commits}", f"--format={fmt}"]
+    if range_spec:
+        cmd.insert(2, range_spec)
+    out = sh(cmd)
+    commits = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        try:
+            h, s = line.split("\x1f", 1)
+        except ValueError:
+            continue
+        commits.append((h, s))
+    commits.reverse()  # oldest -> newest (optional)
+    return commits
+
+def parse_commit(msg: str) -> Tuple[str, str, str]:
+    """
+    Returns (type, scope, desc). If not matched, type='other', scope='', desc=msg
+    """
+    m = COMMIT_PATTERN.match(msg.strip())
+    if not m:
+        return ("other", "", msg.strip())
+    t = m.group("type").lower()
+    scope = m.group("scope") or ""
+    desc = m.group("desc").strip()
+    return (t, scope, desc)
+
+def group_commits(commits: List[Tuple[str, str]]) -> Dict[str, List[Tuple[str, str, str, str]]]:
+    groups: Dict[str, List[Tuple[str, str, str, str]]] = {t[0]: [] for t in TYPES}
+    groups["other"] = []
+    for short, msg in commits:
+        t, scope, desc = parse_commit(msg)
+        groups.setdefault(t, []).append((short, t, scope, desc))
+    return groups
+
+def render_group(title: str, items: List[Tuple[str, str, str, str]]) -> str:
+    if not items:
+        return ""
+    lines = [f"### {title}"]
+    for short, t, scope, desc in items:
+        # Try to keep PR reference if present (#123)
+        pr = ""
+        m = re.search(r"(#\d+)", desc)
+        if m:
+            pr = f" {m.group(1)}"
+        scope_txt = f"**{scope}**: " if scope else ""
+        lines.append(f"- {scope_txt}{desc} ({short}){pr}")
+    return "\n".join(lines) + "\n"
+
+def build_section(since: str | None, max_commits: int) -> str:
+    today = dt.date.today().isoformat()
+    commits = list_commits(since, max_commits)
+    grouped = group_commits(commits)
+
+    header = f"## Changes ({today})\n\n"
+    body_parts = []
+    for key, title in TYPES:
+        body_parts.append(render_group(title, grouped.get(key, [])))
+    body_parts.append(render_group("Other", grouped.get("other", [])))
+    body = "".join(bp for bp in body_parts if bp)
+
+    if not body.strip():
+        body = "_No changes found in the selected range._\n"
+
+    return header + body
+
+def update_changelog(root: Path, section_md: str) -> None:
+    changelog = root / "CHANGELOG.md"
+    block = f"{AUTO_START}\n{section_md}{AUTO_END}\n"
+    if changelog.exists():
+        text = changelog.read_text(encoding="utf-8", errors="ignore")
+        if AUTO_START in text and AUTO_END in text:
+            before = text.split(AUTO_START)[0]
+            after = text.split(AUTO_END)[-1]
+            new_text = before + block + after
+        else:
+            new_text = text.rstrip() + "\n\n" + block
+    else:
+        title = "# Changelog\n\n"
+        intro = "این فایل به صورت خودکار از تاریخچه‌ی گیت ساخته/به‌روزرسانی می‌شود.\n\n"
+        new_text = title + intro + block
+    changelog.write_text(new_text, encoding="utf-8")
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--since", help="شروع رنج لاگ (مثلاً آخرین تگ v1.2.0). اگر خالی باشد از آخرین تگ استفاده می‌شود.", default=None)
+    ap.add_argument("--max-commits", type=int, default=2000, help="حداکثر تعداد کمیت‌ها برای پردازش")
+    args = ap.parse_args()
+
+    root = Path(".").resolve()
+    start = args.since or latest_tag()
+    section = build_section(start, args.max_commits)
+    update_changelog(root, section)
+    print("✅ CHANGELOG.md ساخته/به‌روزرسانی شد.")
+    if start:
+        print(f"   محدودهٔ تغییرات: {start}..HEAD")
+    else:
+        print("   محدودهٔ تغییرات: از اولین کمیت تا HEAD (چون تگی پیدا نشد).")
+
+if __name__ == "__main__":
+    main()
+
