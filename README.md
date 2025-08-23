@@ -1,7 +1,7 @@
 # RoseeNFT
 just tesing gitub.
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-8
 
 """
 generate_readme.py
