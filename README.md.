@@ -519,28 +519,4 @@ def update_changelog(root: Path, section_md: str) -> None:
             new_text = before + block + after
         else:
             new_text = text.rstrip() + "\n\n" + block
-    else:
-        title = "# Changelog\n\n"
-        intro = "این فایل به صورت خودکار از تاریخچه‌ی گیت ساخته/به‌روزرسانی می‌شود.\n\n"
-        new_text = title + intro + block
-    changelog.write_text(new_text, encoding="utf-8")
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--since", help="شروع رنج لاگ (مثلاً آخرین تگ v1.2.0). اگر خالی باشد از آخرین تگ استفاده می‌شود.", default=None)
-    ap.add_argument("--max-commits", type=int, default=2000, help="حداکثر تعداد کمیت‌ها برای پردازش")
-    args = ap.parse_args()
-
-    root = Path(".").resolve()
-    start = args.since or latest_tag()
-    section = build_section(start, args.max_commits)
-    update_changelog(root, section)
-    print("✅ CHANGELOG.md ساخته/به‌روزرسانی شد.")
-    if start:
-        print(f"   محدودهٔ تغییرات: {start}..HEAD")
-    else:
-        print("   محدودهٔ تغییرات: از اولین کمیت تا HEAD (چون تگی پیدا نشد).")
-
-if __name__ == "__main__":
-    main()
-
+ 
