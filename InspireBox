@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+ci_check.py
+Run format/lint/typecheck/tests and produce CI_REPORT.md.
+Designed to be a single-file utility you can add to your repo.
+"""
+
+from __future__ import annotations
+import subprocess
+import shutil
+from pathlib import Path
+from datetime import datetime
+from typing import List, Tuple
+
+REPORT_FILE = Path("CI_REPORT.md")
+TOOLS = {
+    "black": ["black", "--check", "."],
+    "flake8": ["flake8", "."],
+    "mypy": ["mypy", "."],
+    "pytest": ["pytest", "--maxfail=1", "-q"],
+}
+
+
+def find_tool(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+def run_cmd(cmd: List[str]) -> Tuple[int, str]:
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        out = proc.stdout or ""
+        err = proc.stderr or ""
+        combined = (out + ("\n" + err if err else "")).strip()
+        return proc.returncode, combined
+    except Exception as e:
+        return 1, f"Exception when running {cmd!r}: {e}"
+
+
+def header(title: str) -> str:
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return f"# CI Report\n\nGenerated: {now}\n\n## {title}\n\n"
+
+
+def run_checks() -> Tuple[bool, str]:
+    summary_lines: List[str] = []
+    overall_ok = True
+
+    available = {t: find_tool(t) for t in TOOLS.keys()}
+    summary_lines.append("### Tools availability\n")
+    for t, ok in available.items():
+        summary_lines.append(f"- {t}: {'found' if ok else 'missing'}")
+    summary_lines.append("")
+
+    # Run each available tool and collect output
+    for tool, cmd in TOOLS.items():
+        summary_lines.append(f"---\n### {tool}\n")
+        if not available.get(tool, False):
+            summary_lines.append(f"{tool} is not installed. Skipping.\n")
+            overall_ok = False
+            continue
+
+        rc, out = run_cmd(cmd)
+        if rc == 0:
+            summary_lines.append("OK\n")
+        else:
+            overall_ok = False
+            summary_lines.append(f"Exit code: {rc}\n")
+            if out:
+                summary_lines.append("```\n" + out + "\n```\n")
+            else:
+                summary_lines.append("No output.\n")
+
+    return overall_ok, "\n".join(summary_lines)
+
+
+def write_report(content: str, ok: bool) -> None:
+    body = header("Summary") + content
+    body += "\n---\n\n"
+    body += f"Overall status: {'PASS' if ok else 'FAIL'}\n"
+    REPORT_FILE.write_text(body, encoding="utf-8")
+
+
+def main() -> int:
+    ok, content = run_checks()
+    write_report(content, ok)
+    print(f"Report written to {REPORT_FILE}")
+    print("Overall:", "PASS" if ok else "FAIL")
+    return 0 if ok else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
